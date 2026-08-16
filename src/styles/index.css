@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* AstroClean Design Tokens
+   A restrained, precise engineering-tool aesthetic.
+   Tokens are defined in the @theme block and exposed as
+   Tailwind utility classes (e.g. bg-surface, text-primary).
+   Dark-mode variable overrides follow immediately after.
+*/
+
+@theme {
+  /* ---- Color Palette: Slate Neutrals + Teal Accent ---- */
+  /* The base neutral family is cool-toned slate, providing a
+     technical, precise foundation. The accent is a desaturated
+     deep teal used sparingly for primary actions and key UI
+     elements. */
+
+  /* Accent (Teal) - used for primary CTAs, active states,
+     and selected indicators. Not for decorative use. */
+  --color-accent-50: #f0fdfa;
+  --color-accent-100: #ccfbf1;
+  --color-accent-200: #99f6e4;
+  --color-accent-300: #5eead4;
+  --color-accent-400: #2dd4bf;
+  --color-accent-500: #14b8a6;
+  --color-accent-600: #0d9488;
+  --color-accent-700: #0f766e;
+  --color-accent-800: #115e59;
+  --color-accent-900: #134e4a;
+
+  /* Surface - container backgrounds for cards, panels,
+     inputs, and other UI containers */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+
+  /* Background - page-level background behind surfaces */
+  --color-background: #f1f5f9;
+  --color-background-secondary: #e2e8f0;
+
+  /* Text hierarchy */
+  --color-text-primary: #0f172a;     /* headings, body copy */
+  --color-text-secondary: #475569;   /* secondary labels, captions */
+  --color-text-tertiary: #94a3b8;    /* placeholders, disabled text */
+
+  /* Border - used for dividers, input borders, and card outlines */
+  --color-border: #e2e8f0;
+  --color-border-secondary: #cbd5e1;
+
+  /* Semantic feedback - status indicators for data quality
+     and processing results */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* --font-sans: UI headings, body text, labels, buttons.
+     --font-mono: data cells, file paths, code snippets. */
+
+  /* ---- Border Radius (near-square) ---- */
+  --radius-sm: 2px;  /* small UI elements: badges, tags */
+  --radius-md: 4px;  /* default: buttons, inputs, cards, panels */
+  --radius-lg: 4px;  /* modals, dropdowns - capped at 4px max */
+
+  /* ---- Elevation (minimal two-level shadow scale) ---- */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+    /* subtle card shadow, default resting state */
+  --shadow-md: 0 2px 6px 0 rgb(0 0 0 / 0.05);
+    /* raised shadow for dropdowns, modals, popovers */
+
+  /* ---- Spacing Scale (8px-base, data-dense) ---- */
+  /* Built on an 8px grid for tight, consistent density.
+     Tailwind v4 maps --spacing-{n} to {n*4}px by default,
+     so --spacing-2 = 8px, --spacing-4 = 16px, etc.
+     This aligns with the 8px grid; no custom spacing
+     tokens are needed. */
+}
+
+/* Dark-mode variable overrides */
+/* Activated when the "dark" class is present on the document
+   root element (Tailwind's default dark-mode strategy). */
+:root.dark {
+  --color-accent-50: #022c22;
+  --color-accent-100: #064e3b;
+  --color-accent-200: #065f46;
+  --color-accent-300: #047857;
+  --color-accent-400: #059669;
+  --color-accent-500: #14b8a6;
+  --color-accent-600: #2dd4bf;
+  --color-accent-700: #5eead4;
+  --color-accent-800: #99f6e4;
+  --color-accent-900: #ccfbf1;
+
+  --color-surface: #0f172a;
+  --color-surface-secondary: #1e293b;
+  --color-surface-hover: #334155;
+  --color-background: #020617;
+  --color-background-secondary: #0f172a;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-tertiary: #64748b;
+  --color-border: #334155;
+  --color-border-secondary: #475569;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+}
+
+/* Base styles */
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling for data tables */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 3px;
+  }
+}
