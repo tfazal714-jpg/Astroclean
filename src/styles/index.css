@@ -43,7 +43,7 @@
 
   /* Semantic feedback - status indicators for data quality
      and processing results */
-  --color-success: #16a34a;
+  --color-success: #059669;
   --color-warning: #d97706;
   --color-error: #dc2626;
 
@@ -76,6 +76,7 @@
 /* Activated when the "dark" class is present on the document
    root element (Tailwind's default dark-mode strategy). */
 :root.dark {
+  /* Accent: saturated indigo — only color that draws the eye */
   --color-accent-50: #1e1b4b;
   --color-accent-100: #312e81;
   --color-accent-200: #3730a3;
@@ -87,19 +88,32 @@
   --color-accent-800: #c7d2fe;
   --color-accent-900: #e0e7ff;
 
-  --color-surface: #0f172a;
-  --color-surface-secondary: #1e293b;
-  --color-surface-hover: #334155;
-  --color-background: #020617;
-  --color-background-secondary: #0f172a;
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
-  --color-border: #334155;
-  --color-border-secondary: #475569;
-  --color-success: #22c55e;
+  /* Surfaces: pure-black base, near-black containers */
+  --color-surface: #111111;
+  --color-surface-secondary: #1a1a1a;
+  --color-surface-hover: #242424;
+  --color-background: #000000;
+  --color-background-secondary: #0a0a0a;
+
+  /* Text: pure white for primary, warm grays for secondary/tertiary */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a0a0a0;
+  --color-text-tertiary: #5a5a5a;
+
+  /* Borders: subtle but visible against black */
+  --color-border: #222222;
+  --color-border-secondary: #333333;
+
+  /* Semantic: vivid against black */
+  --color-success: #059669;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+}
+
+/* Dark mode column detail panel: distinct darker shade */
+:root.dark [data-column-detail],
+:root.dark [data-columns-panel] {
+  background-color: #0d0d0d;
 }
 
 /* Base styles */
@@ -143,6 +157,14 @@ body {
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: #cbd5e1;
     border-radius: 3px;
+  }
+
+  :root.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #333333;
+  }
+
+  :root.dark .scrollbar-thin {
+    scrollbar-color: #333333 transparent;
   }
 }
 
@@ -226,6 +248,10 @@ body {
   100% {
     transform: translateX(0);
   }
+}
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 @keyframes toast-in {

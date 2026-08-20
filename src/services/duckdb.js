@@ -172,20 +172,29 @@ export async function createTableFromObjects(tableName, rows) {
     `CREATE TABLE "${tableName}" (${colDefs})`,
   )
 
-  // Batch insert via a prepared statement.
+  // Batch insert via a prepared statement. For large datasets (>10k rows)
+  // we yield to the event loop between batches so the main thread stays
+  // responsive and the UI doesn't freeze.
   const stmt = await conn.prepare(
     `INSERT INTO "${tableName}" VALUES (${columns
       .map(() => '?')
       .join(', ')})`,
   )
 
-  const batchSize = 5000
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize)
+  const BATCH_SIZE = 5000
+  const YIELD_THRESHOLD = 10000
+  let inserted = 0
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE)
     for (const row of batch) {
       await stmt.send(...columns.map((c) => row[c]))
     }
     await stmt.flush()
+    inserted += batch.length
+    // Yield to the event loop every 10k rows so the browser can paint.
+    if (inserted >= YIELD_THRESHOLD && i + BATCH_SIZE < rows.length) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
   }
 
   await stmt.close()
@@ -481,6 +490,11 @@ export async function rebuildPipeline(rawTable, ops, workTable, ctx = {}) {
     }
 
     schema = await getSchema(workTable)
+
+    // Yield to the browser every 5 ops so the UI can paint progress.
+    if (i % 5 === 4 && i + 1 < ops.length) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
   }
 }
 
@@ -576,14 +590,45 @@ export async function dropTable(tableName) {
 export async function terminateDuckDB() {
   // Invalidate any in-flight init so it aborts and cleans up its own worker.
   initGeneration += 1
-  if (connInstance) {
-    await connInstance.close()
-    connInstance = null
+  try {
+    if (connInstance) {
+      await connInstance.close()
+      connInstance = null
+    }
+  } catch {
+    // Connection may already be closed — non-fatal.
   }
-  if (dbInstance) {
-    await dbInstance.terminate()
-    dbInstance = null
+  try {
+    if (dbInstance) {
+      await dbInstance.terminate()
+      dbInstance = null
+    }
+  } catch {
+    // Terminate failure is non-fatal; the worker will be GC'd.
   }
   initPromise = null
   initResolved = false
+}
+
+/**
+ * Drop all tables matching a prefix pattern. Used when clearing a session
+ * so DuckDB's internal buffers are freed back to the WASM heap.
+ */
+export async function dropAllSessionTables(prefix = '') {
+  try {
+    const { conn } = await initDuckDB()
+    const result = await conn.query(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'main'`,
+    )
+    const tables = result.toArray()
+    for (const row of tables) {
+      const name = row.table_name
+      if (name.startsWith(prefix)) {
+        await conn.query(`DROP TABLE IF EXISTS "${name}"`)
+      }
+    }
+  } catch {
+    // Non-fatal.
+  }
 }

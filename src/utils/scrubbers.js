@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { chatComplete } from '../services/ai.js'
-import { getAiCache, setAiCache, rowHash } from '../services/aiCache.js'
+import { getAiCache, setAiCache, rowHash, promptHash } from '../services/aiCache.js'
 
 const q = (name) => `"${String(name).replace(/"/g, '""')}"`
 const esc = (value) => `'${String(value).replace(/'/g, "''")}'`
@@ -90,21 +90,47 @@ export const OPS = [
     type: 'dedupe',
     group: 'clean',
     label: 'Remove duplicates',
-    description: 'Keep the first occurrence of each unique row.',
+    description: 'Keep the first occurrence of each unique row, with optional normalization.',
     icon: 'copy',
     fields: [
       { key: 'columns', kind: 'columns', label: 'Match on columns', hint: 'Rows match when these columns are equal. Leave empty to require a full-row match.' },
+      {
+        key: 'normMode', kind: 'select', label: 'Normalize before matching',
+        options: [
+          { value: 'none', label: 'None (exact match)' },
+          { value: 'lowercase', label: 'Lowercase all values' },
+          { value: 'emailDomain', label: 'Match on email domain only' },
+          { value: 'companyName', label: 'Match on normalized company name' },
+        ],
+      },
     ],
     build(table, params, schema) {
       const cols = resolveColumns(params.columns, schema)
+      const norm = params.normMode ?? 'none'
+      // Build a normalized CTE so dedup logic stays clean.
+      const normCols = cols.map((c) => {
+        if (norm === 'lowercase') return `LOWER(TRIM(CAST(${q(c)} AS VARCHAR))) AS ${q(c)}`
+        if (norm === 'emailDomain' && (c.toLowerCase().includes('email') || c.toLowerCase().includes('mail'))) {
+          return `LOWER(REGEXP_EXTRACT(TRIM(CAST(${q(c)} AS VARCHAR)), '@([^@]+)$', 1)) AS ${q(c)}`
+        }
+        if (norm === 'companyName') return `LOWER(TRIM(REGEXP_REPLACE(CAST(${q(c)} AS VARCHAR), '(^\\s+|\\s+$|[^a-z0-9 ])', '', 'gi'))) AS ${q(c)}`
+        return q(c)
+      })
       let select
-      if (cols.length === schema.length) {
+      if (cols.length === schema.length && norm === 'none') {
         select = `SELECT DISTINCT * FROM ${q(table)}`
       } else {
-        const partition = cols.map((c) => q(c)).join(', ')
-        select = `SELECT * EXCLUDE (__dup_rn_9x) FROM (
+        const allNormCols = schema.map((c) => {
+          if (cols.includes(c.name)) {
+            const idx = cols.indexOf(c.name)
+            return `${normCols[idx]} AS __norm_${c.name}`
+          }
+          return `${q(c.name)} AS __norm_${c.name}`
+        })
+        const partition = cols.map((c) => `__norm_${c}`).join(', ')
+        select = `SELECT * EXCLUDE (__dup_rn_9x, ${cols.map((c) => `__norm_${c}`).join(', ')}) FROM (
           SELECT *, ROW_NUMBER() OVER (PARTITION BY ${partition}) AS __dup_rn_9x
-          FROM ${q(table)}
+          FROM (SELECT ${allNormCols.join(', ')}, * FROM ${q(table)})
         ) WHERE __dup_rn_9x = 1`
       }
       return { sql: select, replace: true }
@@ -205,6 +231,98 @@ export const OPS = [
              ELSE false END`,
         )
       }
+      return { sql: stmts }
+    },
+  },
+
+  {
+    type: 'e164Phone',
+    group: 'clean',
+    label: 'Phone to E.164',
+    description: 'Standardize phone numbers to international E.164 format (+[country][number]).',
+    icon: 'phone',
+    fields: [
+      { key: 'column', kind: 'column', label: 'Phone column', required: true },
+      { key: 'defaultCountry', kind: 'text', label: 'Default country code', placeholder: 'e.g. 1 for US/CA', hint: 'Used when the number has no leading +. Leave empty to skip unknowns.' },
+      { key: 'addFlag', kind: 'checkbox', label: 'Add validity flag column', default: true },
+    ],
+    build(table, params, schema) {
+      const col = params.column
+      if (!col) return null
+      const cc = String(params.defaultCountry ?? '').trim()
+      // Strip all non-digits, then prepend country code if no leading + was present.
+      const stripped = `REGEXP_REPLACE(CAST(${q(col)} AS VARCHAR), '[^0-9]', '', 'g')`
+      const stmts = []
+      if (params.addFlag) {
+        const flag = `${col}_e164_valid`
+        if (!schema.some((c) => c.name === flag)) {
+          stmts.push(`ALTER TABLE ${q(table)} ADD COLUMN ${q(flag)} BOOLEAN`)
+        }
+      }
+      stmts.push(
+        `UPDATE ${q(table)} SET ${q(col)} = CASE
+           WHEN ${q(col)} IS NULL THEN NULL
+           -- Already has a leading +: strip formatting, keep as-is.
+           WHEN CAST(${q(col)} AS VARCHAR) LIKE '+%' THEN '+' || ${stripped}
+           -- Has a leading 00 (international dialing): strip 00, add +.
+           WHEN CAST(${q(col)} AS VARCHAR) LIKE '00%' THEN '+' || SUBSTRING(${stripped}, 3)
+           ${cc ? `-- No prefix: prepend default country code.
+           ELSE '+' || '${cc}' || ${stripped}` : `ELSE '+' || ${stripped}`}
+         END
+         WHERE ${q(col)} IS NOT NULL`,
+      )
+      if (params.addFlag) {
+        const flag = `${col}_e164_valid`
+        stmts.push(
+          `UPDATE ${q(table)} SET ${q(flag)} = CASE
+             WHEN ${q(col)} IS NOT NULL
+               AND CAST(${q(col)} AS VARCHAR) LIKE '+%'
+               AND LENGTH(${stripped}) BETWEEN 7 AND 15
+               AND REGEXP_MATCHES(${stripped}, '^[0-9]+$') THEN true
+             ELSE false END`,
+        )
+      }
+      return { sql: stmts }
+    },
+  },
+
+  {
+    type: 'classifyEmail',
+    group: 'enrich',
+    label: 'Classify email type',
+    description: 'Flag email addresses as "corporate" (custom domain) or "free" (Gmail, Yahoo, etc.).',
+    icon: 'mail',
+    fields: [
+      { key: 'column', kind: 'column', label: 'Email column', required: true },
+      { key: 'targetColumn', kind: 'text', label: 'Output column name', placeholder: 'e.g. email_type', default: 'email_type' },
+    ],
+    build(table, params, schema) {
+      const col = params.column
+      const target = String(params.targetColumn ?? '').trim() || 'email_type'
+      if (!col) return null
+      const stmts = []
+      if (!schema.some((c) => c.name === target)) {
+        stmts.push(`ALTER TABLE ${q(table)} ADD COLUMN ${q(target)} VARCHAR`)
+      }
+      // Known free email providers — matches against the domain part.
+      const freeProviders = [
+        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com',
+        'icloud.com', 'mail.com', 'protonmail.com', 'proton.me',
+        'zoho.com', 'yandex.com', 'gmx.com', 'live.com', 'msn.com',
+        'att.net', 'comcast.net', 'verizon.net', 'cox.net', 'sbcglobal.net',
+        'rocketmail.com', 'fastmail.com', 'hey.com', 'tutanota.com',
+        '163.com', '126.com', 'qq.com', 'foxmail.com',
+      ]
+      const freeList = freeProviders.map((d) => `'${d}'`).join(', ')
+      stmts.push(
+        `UPDATE ${q(table)} SET ${q(target)} = CASE
+           WHEN ${q(col)} IS NULL OR TRIM(CAST(${q(col)} AS VARCHAR)) = '' THEN NULL
+           WHEN LOWER(SUBSTRING(TRIM(CAST(${q(col)} AS VARCHAR)),
+             POSITION('@' IN TRIM(CAST(${q(col)} AS VARCHAR))) + 1)) IN (${freeList}) THEN 'free'
+           ELSE 'corporate'
+         END
+         WHERE ${q(col)} IS NOT NULL`,
+      )
       return { sql: stmts }
     },
   },
@@ -396,6 +514,100 @@ export const OPS = [
     },
   },
 
+
+  {
+    type: 'formatDate',
+    group: 'clean',
+    label: 'Format dates',
+    description: 'Parse date/datetime strings and reformat to a standard layout.',
+    icon: 'calendar',
+    fields: [
+      { key: 'column', kind: 'column', label: 'Date column', required: true },
+      { key: 'datetime', kind: 'checkbox', label: 'Column contains time components', default: false },
+      { key: 'inputFormat', kind: 'text', label: 'Input format', placeholder: 'e.g. %m/%d/%Y — leave empty to auto-detect', hint: 'Uses strptime patterns. Auto-detect handles ISO 8601.' },
+      { key: 'outputFormat', kind: 'select', label: 'Output format', options: [
+        { value: '%Y-%m-%d', label: 'YYYY-MM-DD (ISO)' },
+        { value: '%m/%d/%Y', label: 'MM/DD/YYYY (US)' },
+        { value: '%d/%m/%Y', label: 'DD/MM/YYYY (EU)' },
+        { value: '%Y/%m/%d', label: 'YYYY/MM/DD' },
+        { value: '%Y-%m-%d %H:%M:%S', label: 'YYYY-MM-DD HH:MM:SS' },
+        { value: '%B %d, %Y', label: 'Month DD, YYYY' },
+      ]},
+    ],
+    build(table, params, schema) {
+      const col = params.column
+      if (!col) return null
+      const inputFmt = String(params.inputFormat ?? '').trim()
+      const outputFmt = params.outputFormat || '%Y-%m-%d'
+
+      let dateExpr
+      if (inputFmt) {
+        dateExpr = `TRY_STRPTIME(CAST(${q(col)} AS VARCHAR), '${inputFmt.replace(/'/g, "''")}')`
+      } else if (params.datetime === true) {
+        dateExpr = `TRY_CAST(${q(col)} AS TIMESTAMP)`
+      } else {
+        dateExpr = `TRY_CAST(${q(col)} AS DATE)`
+      }
+
+      const formatted = `strftime(${dateExpr}, '${outputFmt.replace(/'/g, "''")}')`
+
+      return {
+        sql: `UPDATE ${q(table)} SET ${q(col)} = COALESCE(
+          CAST(${formatted} AS VARCHAR),
+          CAST(${q(col)} AS VARCHAR)
+        ) WHERE ${q(col)} IS NOT NULL`,
+      }
+    },
+  },
+
+  {
+    type: 'fillFromColumn',
+    group: 'clean',
+    label: 'Fill from another column',
+    description: 'Copy values from a source column to fill empty cells in a target column.',
+    icon: 'arrow-right-left',
+    fields: [
+      { key: 'target', kind: 'column', label: 'Target column (fill empty cells)', required: true },
+      { key: 'source', kind: 'column', label: 'Source column (copy from)', required: true },
+    ],
+    build(table, params, schema) {
+      const target = params.target
+      const source = params.source
+      if (!target || !source) return null
+      return {
+        sql: `UPDATE ${q(table)} SET ${q(target)} = ${q(source)}
+ WHERE (${q(target)} IS NULL OR TRIM(CAST(${q(target)} AS VARCHAR)) = '')
+              AND ${q(source)} IS NOT NULL AND TRIM(CAST(${q(source)} AS VARCHAR)) <> ''`,
+      }
+    },
+  },
+
+  {
+    type: 'sortRows',
+    group: 'clean',
+    label: 'Sort rows',
+    description: 'Reorder all rows based on a column value.',
+    icon: 'arrow-up-down',
+    fields: [
+      { key: 'column', kind: 'column', label: 'Sort by', required: true },
+      {
+        key: 'direction', kind: 'select', label: 'Direction',
+        options: [
+          { value: 'ASC', label: 'Ascending (A-Z, 0-9)' },
+          { value: 'DESC', label: 'Descending (Z-A, 9-0)' },
+        ],
+      },
+    ],
+    build(table, params, schema) {
+      const col = params.column
+      if (!col) return null
+      const dir = params.direction || 'ASC'
+      return {
+        sql: `SELECT * FROM ${q(table)} ORDER BY ${q(col)} ${dir} NULLS LAST`,
+        replace: true,
+      }
+    },
+  },
   // ---- Enrichment -------------------------------------------------------
   {
     type: 'extractDomain',
@@ -609,9 +821,21 @@ export const OPS = [
         return v === null || v === undefined || String(v).trim() === ''
       })
 
-      // 4. Cache lookup (keyed by the whole pipeline prefix before this op).
-      const cacheMap = opKey ? (await getAiCache(opKey)) ?? new Map() : new Map()
-      const toRun = pending.filter((r) => !cacheMap.has(rowHash(r, target)))
+      // 4. Cache lookup — two layers:
+      //    a) opKey cache: instant replay when the pipeline prefix matches exactly.
+      //    b) Prompt-level cache: prevents duplicate API calls for the same
+      //       prompt+row combination across different pipeline states.
+      const opCache = opKey ? (await getAiCache(opKey)) ?? new Map() : new Map()
+      const promptCacheKey = promptHash(prompt, inputCols)
+      const promptCache = await getAiCache(promptCacheKey).catch(() => null) ?? new Map()
+
+      const toRun = pending.filter((r) => {
+        const h = rowHash(r, target)
+        return !opCache.has(h) && !promptCache.has(h)
+      })
+
+      // Merge both caches for writing results back.
+      const cacheMap = new Map([...promptCache, ...opCache])
 
       const writeEntries = async (entries) => {
         if (entries.length === 0) return
@@ -677,7 +901,10 @@ export const OPS = [
         if (entries.length > 0) {
           await writeEntries(entries)
           for (const [h, v] of entries) cacheMap.set(h, v)
+          // Persist to both the opKey cache and the prompt-level cache
+          // so future pipeline states skip identical prompt+row combinations.
           if (opKey) await setAiCache(opKey, cacheMap)
+          await setAiCache(promptCacheKey, cacheMap)
           onAiDone?.(entries.length)
         }
       }
@@ -700,7 +927,13 @@ export const OPS = [
       if (errors > 0 && cacheMap.size === 0) {
         throw new Error('The AI provider failed for every row — check the provider and model in Settings.')
       }
-      return { rows: cacheMap.size, errors }
+      return {
+        rows: cacheMap.size,
+        errors,
+        // Partial success: some rows got values, others failed. The UI
+        // can display a warning badge without blocking the pipeline.
+        partial: errors > 0 && cacheMap.size > 0,
+      }
     },
   },
 ]
@@ -754,6 +987,8 @@ export function summarizeOp(op) {
     case 'case': return `${columnLabel(p.columns)} · ${p.mode ?? 'lower'}`
     case 'normalizeEmail': return `${p.column ?? '—'}${p.addFlag ? ' · flag' : ''}`
     case 'normalizePhone': return `${p.column ?? '—'}${p.addFlag ? ' · flag' : ''}`
+    case 'e164Phone': return `${p.column ?? '—'} → E.164${p.defaultCountry ? ` (cc=${p.defaultCountry})` : ''}`
+    case 'classifyEmail': return `${p.column ?? '—'} → ${p.targetColumn || 'email_type'}`
     case 'fillEmpty': return `${columnLabel(p.columns)} → ${p.value ?? ''}`
     case 'dropColumns': return columnLabel(p.columns)
     case 'renameColumn': return `${p.from ?? '—'} → ${p.to ?? '—'}`
@@ -761,6 +996,9 @@ export function summarizeOp(op) {
     case 'splitColumn': return `${p.column ?? '—'} → ${(p.prefix || 'part')}_1…`
     case 'mergeColumns': return `${columnLabel(p.columns)} → ${p.target ?? '—'}`
     case 'filterRows': return `${p.action === 'drop' ? 'drop' : 'keep'} · ${p.column ?? '—'} (${p.mode ?? ''})`
+    case 'formatDate': return `${p.column ?? '—'} → ${p.outputFormat ?? 'ISO'}`
+    case 'fillFromColumn': return `${p.source ?? '—'} → ${p.target ?? '—'}`
+    case 'sortRows': return `${p.column ?? '—'} ${p.direction ?? 'ASC'}`
     case 'extractDomain': return p.column ?? '—'
     case 'inferCompany': return p.column ?? '—'
     case 'splitName': return p.column ?? '—'
@@ -770,7 +1008,6 @@ export function summarizeOp(op) {
     default: return ''
   }
 }
-
 /** Parses a JSON array from a model reply, tolerating code fences. */
 function parseJsonArray(content, _expected) {
   let s = String(content ?? '').trim()

@@ -125,6 +125,25 @@ function describeHttpError(status, body) {
  * @param {{ system?: string, user: string, temperature?: number, maxTokens?: number, signal?: AbortSignal }} opts
  * @returns {Promise<string>} The assistant text.
  */
+const MAX_RETRIES = 3
+
+/**
+ * Sleep helper that respects AbortSignal.
+ */
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+    }, { once: true })
+  })
+}
+
 export async function chatComplete(provider, opts = {}) {
   const { system, user, temperature = 0.1, maxTokens = 600, signal } = opts
   const base = normalizeBaseUrl(provider?.baseUrl)
@@ -136,38 +155,69 @@ export async function chatComplete(provider, opts = {}) {
   if (system) messages.push({ role: 'system', content: system })
   messages.push({ role: 'user', content: user })
 
-  let res
-  try {
-    res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        model: provider.model.trim(),
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-      signal,
-    })
-  } catch (err) {
-    if (err?.name === 'AbortError') throw err
-    throw new Error(`Network error — could not reach ${base}. ${err?.message ?? ''}`)
-  }
+  let lastError = null
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let res
+    try {
+      res = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${provider.apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: provider.model.trim(),
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        }),
+        signal,
+      })
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err
+      // Network errors: retry with backoff.
+      lastError = new Error(`Network error — could not reach ${base}. ${err?.message ?? ''}`)
+      if (attempt < MAX_RETRIES) {
+        await sleep(Math.min(1000 * 2 ** attempt, 8000), signal).catch(() => {})
+        continue
+      }
+      throw lastError
+    }
 
-  if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json().catch(() => null)
+      const content = data?.choices?.[0]?.message?.content
+      if (typeof content === 'string' && content.trim() !== '') {
+        return content
+      }
+      // Empty response: treat as a transient failure, retry.
+      lastError = new Error('Provider returned an empty response.')
+      if (attempt < MAX_RETRIES) {
+        await sleep(Math.min(1000 * 2 ** attempt, 8000), signal).catch(() => {})
+        continue
+      }
+      throw lastError
+    }
+
+    // Retryable status codes: 429 (rate limit) and 5xx (server errors).
+    const retryable = res.status === 429 || res.status >= 500
     const body = await res.text().catch(() => '')
-    throw new Error(describeHttpError(res.status, body))
+    lastError = new Error(describeHttpError(res.status, body))
+
+    if (retryable && attempt < MAX_RETRIES) {
+      // Respect Retry-After header from 429 responses.
+      const retryAfter = res.headers?.get('Retry-After')
+      const delay = retryAfter
+        ? Math.min(Number(retryAfter) * 1000, 15000)
+        : Math.min(1000 * 2 ** attempt, 8000)
+      await sleep(delay, signal).catch(() => {})
+      continue
+    }
+
+    throw lastError
   }
 
-  const data = await res.json().catch(() => null)
-  const content = data?.choices?.[0]?.message?.content
-  if (typeof content !== 'string' || content.trim() === '') {
-    throw new Error('Provider returned an empty response.')
-  }
-  return content
+  throw lastError ?? new Error('Request failed after retries.')
 }
 
 /** Verifies a provider config with a minimal request. */

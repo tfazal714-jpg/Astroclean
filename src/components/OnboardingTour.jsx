@@ -125,17 +125,21 @@ export default function OnboardingTour({ onFinish }) {
   const tooltipStyle = (() => {
     if (!rect) return { top: '50%', left: '50%' }
     const GAP = 12
+    const maxW = Math.min(320, Math.max(240, rect.width))
+    const vw = window.innerWidth
+    // Clamp left so the tooltip never overflows the viewport.
+    const left = Math.max(8, Math.min(rect.left, vw - maxW - 8))
     if (placement === 'bottom') {
       return {
         top: rect.top + rect.height + GAP,
-        left: rect.left,
-        maxWidth: Math.min(320, Math.max(240, rect.width)),
+        left,
+        maxWidth: maxW,
       }
     }
     return {
       bottom: window.innerHeight - rect.top + GAP,
-      left: rect.left,
-      maxWidth: Math.min(320, Math.max(240, rect.width)),
+      left,
+      maxWidth: maxW,
     }
   })()
 

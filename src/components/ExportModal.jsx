@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Download, FileDown, X } from 'lucide-react'
-import { exportTableToCsv } from '../services/duckdb.js'
+import { exportTableToCsv, query } from '../services/duckdb.js'
 import { formatNumber } from '../utils/format.js'
 import { formatBytes } from '../utils/fileSize.js'
 import { cn } from '../utils/cn.js'
@@ -9,21 +9,26 @@ import { useFocusTrap } from '../hooks/useFocusTrap.js'
 import { useRef } from 'react'
 
 const FORMATS = [
-  { value: 'csv', label: 'CSV', hint: 'Comma-separated — Excel-friendly' },
-  { value: 'tsv', label: 'TSV', hint: 'Tab-separated — paste-friendly' },
-  { value: 'json', label: 'JSON', hint: 'Array of row objects' },
+  { value: 'csv', label: 'CSV', hint: 'Comma-separated' },
+  { value: 'tsv', label: 'TSV', hint: 'Tab-separated' },
+  { value: 'json', label: 'JSON', hint: 'Row objects' },
 ]
 
 const DELIMITERS = [
   { value: ',', label: 'Comma (,)' },
   { value: ';', label: 'Semicolon (;)' },
-  { value: '\\t', label: 'Tab' },
-  { value: '|', label: 'Pipe (|)' },
+  { value: '\t', label: 'Tab' },
+]
+
+const ROW_FILTERS = [
+  { value: 'all', label: 'All Leads', hint: 'Export every row' },
+  { value: 'valid', label: 'Valid Only', hint: 'Rows where all _is_valid flags are true' },
+  { value: 'flagged', label: 'Flagged Only', hint: 'Rows where any _is_valid flag is false' },
 ]
 
 /**
- * Export modal: pick format + options, then download. Shows file size and
- * row count for confidence before the download starts.
+ * Export modal: pick format, delimiter, row filter, and options, then download.
+ * Shows file size and row count for confidence before the download starts.
  */
 export default function ExportModal({
   dataset,
@@ -35,8 +40,10 @@ export default function ExportModal({
   const [delimiter, setDelimiter] = useState(defaults?.delimiter ?? ',')
   const [includeHeader, setIncludeHeader] = useState(defaults?.includeHeader !== false)
   const [nullValue, setNullValue] = useState(defaults?.nullValue ?? '')
+  const [rowFilter, setRowFilter] = useState('all')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [filteredCount, setFilteredCount] = useState(null)
   const modalRef = useRef(null)
   useFocusTrap(modalRef, true)
 
@@ -48,11 +55,49 @@ export default function ExportModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Detect _is_valid / _e164_valid columns for filter options.
+  const validColumns = useMemo(() => {
+    if (!dataset?.columns) return []
+    return dataset.columns
+      .filter((c) => /_is_valid$/i.test(c.name))
+      .map((c) => c.name)
+  }, [dataset?.columns])
+
+  const hasFilters = validColumns.length > 0
+
+  // Build a WHERE clause for the selected row filter.
+  const filterWhere = useMemo(() => {
+    if (!hasFilters || rowFilter === 'all') return null
+    if (rowFilter === 'valid') {
+      return validColumns.map((c) => `"${c}" = true`).join(' AND ')
+    }
+    // flagged: any _is_valid column is false
+    return validColumns.map((c) => `"${c}" = false OR "${c}" IS NULL`).join(' AND ')
+  }, [rowFilter, validColumns, hasFilters])
+
+  // Preview filtered row count when filter changes.
+  useEffect(() => {
+    if (!filterWhere) {
+      setFilteredCount(null)
+      return
+    }
+    let cancelled = false
+    const q = `SELECT COUNT(*) AS n FROM "${dataset.workTable}" WHERE ${filterWhere}`
+    query(q)
+      .then((r) => {
+        if (!cancelled) setFilteredCount(Number(r.toArray()[0].n))
+      })
+      .catch(() => {
+        if (!cancelled) setFilteredCount(0)
+      })
+    return () => { cancelled = true }
+  }, [filterWhere, dataset?.workTable])
+
+  const displayRows = filteredCount ?? dataset?.rowCount ?? 0
+
   const estimateBytes = (() => {
-    // Rough: ~50 bytes per row for CSV; JSON slightly heavier.
-    const rows = dataset?.rowCount ?? 0
     const perRow = format === 'json' ? 130 : 60
-    return rows * perRow
+    return displayRows * perRow
   })()
 
   const handleExport = async () => {
@@ -60,24 +105,41 @@ export default function ExportModal({
     setBusy(true)
     setError(null)
     try {
-      const blob = await exportTableToCsv(dataset.workTable, {
-        format,
-        delimiter: format === 'tsv' ? '\t' : delimiter,
-        includeHeader,
-        nullValue,
-      })
-      const ext = format === 'json' ? 'json' : format === 'tsv' ? 'tsv' : 'csv'
-      const base = dataset.name.replace(/\.(csv|tsv|json)$/i, '') || 'dataset'
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${base}-clean.${ext}`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
-      onExported?.(format)
-      onClose()
+      // If a row filter is active, create a temporary filtered view, export it,
+      // then drop the view.
+      let exportTable = dataset.workTable
+      const tempView = filterWhere ? `__export_view_${Date.now()}` : null
+      if (tempView) {
+        await query(
+          `CREATE OR REPLACE TEMP VIEW "${tempView}" AS SELECT * FROM "${dataset.workTable}" WHERE ${filterWhere}`,
+        )
+        exportTable = tempView
+      }
+      try {
+        const blob = await exportTableToCsv(exportTable, {
+          format,
+          delimiter: format === 'tsv' ? '\t' : delimiter,
+          includeHeader,
+          nullValue,
+        })
+        const ext = format === 'json' ? 'json' : format === 'tsv' ? 'tsv' : 'csv'
+        const base = dataset.name.replace(/\.(csv|tsv|json)$/i, '') || 'dataset'
+        const filterLabel = rowFilter !== 'all' ? `-${rowFilter}` : ''
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${base}${filterLabel}-clean.${ext}`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
+        onExported?.(format)
+        onClose()
+      } finally {
+        if (tempView) {
+          await query(`DROP VIEW IF EXISTS "${tempView}"`).catch(() => {})
+        }
+      }
     } catch (err) {
       setError(err?.message || 'Export failed.')
     } finally {
@@ -106,6 +168,32 @@ export default function ExportModal({
 
         {/* Body */}
         <div className="space-y-4 px-4 py-4">
+          {/* Row filter */}
+          {hasFilters && (
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-text-secondary">Row filter</span>
+              <div className="grid grid-cols-3 gap-2">
+                {ROW_FILTERS.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setRowFilter(f.value)}
+                    className={cn(
+                      'rounded-sm border px-2 py-2 text-left transition-colors',
+                      rowFilter === f.value
+                        ? 'border-accent-600 bg-accent-50'
+                        : 'border-border-secondary bg-surface hover:border-accent-600',
+                    )}
+                  >
+                    <span className="block text-xs font-semibold text-text-primary">{f.label}</span>
+                    <span className="mt-0.5 block text-[10px] leading-3 text-text-tertiary">{f.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Format */}
           <div>
             <span className="mb-1.5 block text-xs font-medium text-text-secondary">Format</span>
             <div className="grid grid-cols-3 gap-2">
@@ -166,8 +254,11 @@ export default function ExportModal({
 
           <div className="flex items-center justify-between border border-border bg-surface-secondary/60 px-3 py-2 text-[11px] text-text-secondary">
             <span>
-              <span className="font-semibold text-text-primary">{formatNumber(dataset.rowCount)}</span> rows
-              · {dataset.columns.length} columns
+              <span className="font-semibold text-text-primary">{formatNumber(displayRows)}</span> rows
+              {rowFilter !== 'all' && (
+                <span className="text-text-tertiary"> (filtered)</span>
+              )}
+              {' '}&middot; {dataset.columns.length} columns
             </span>
             <span className="font-mono tabular-nums">{formatBytes(estimateBytes)} est.</span>
           </div>
@@ -184,10 +275,15 @@ export default function ExportModal({
           <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" onClick={handleExport} disabled={busy}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleExport}
+            disabled={busy || (rowFilter !== 'all' && displayRows === 0)}
+          >
             {busy ? (
               <>
-                <Spinner className="h-3 w-3" /> Exporting…
+                <Spinner className="h-3 w-3" /> Exporting...
               </>
             ) : (
               <>

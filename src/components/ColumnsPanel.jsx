@@ -50,7 +50,7 @@ export default function ColumnsPanel({ table, columns, refreshKey }) {
   }
 
   return (
-    <div className="divide-y divide-border/70">
+    <div className="divide-y divide-border/70" data-columns-panel>
       {stats.map((col) => {
         const fillPct = col.total > 0 ? Math.round((col.nonEmpty / col.total) * 100) : 0
         const tags = []

@@ -17,13 +17,27 @@ import Dexie from 'dexie'
 const db = new Dexie('astroclean')
 db.version(1).stores({ aiCache: 'opKey, createdAt' })
 
-/** Fast deterministic string hash (djb2), hex-encoded. */
+/**
+ * Fast deterministic string hash (djb2), hex-encoded.
+ * Used for both pipeline opKeys and row content hashes.
+ */
 export function hashString(str) {
   let h = 5381
   for (let i = 0; i < str.length; i += 1) {
     h = ((h << 5) + h + str.charCodeAt(i)) >>> 0
   }
   return h.toString(36)
+}
+
+/**
+ * Hash the full prompt + row inputs so identical requests are never
+ * sent to the provider twice, even across different pipeline states.
+ * This prevents duplicate API calls when the same row+prompt combination
+ * is encountered in multiple pipeline rebuilds.
+ */
+export function promptHash(prompt, rowInputs) {
+  const key = `${prompt}||${JSON.stringify(rowInputs)}`
+  return hashString(key)
 }
 
 /** Content hash of a row (sorted keys, output column excluded). */
