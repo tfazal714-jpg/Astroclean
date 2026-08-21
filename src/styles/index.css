@@ -76,36 +76,36 @@
 /* Activated when the "dark" class is present on the document
    root element (Tailwind's default dark-mode strategy). */
 :root.dark {
-  /* Accent: saturated indigo — only color that draws the eye */
-  --color-accent-50: #1e1b4b;
-  --color-accent-100: #312e81;
-  --color-accent-200: #3730a3;
-  --color-accent-300: #4338ca;
-  --color-accent-400: #4f46e5;
-  --color-accent-500: #6366f1;
-  --color-accent-600: #818cf8;
-  --color-accent-700: #a5b4fc;
-  --color-accent-800: #c7d2fe;
-  --color-accent-900: #e0e7ff;
+  /* Accent: Excel Green */
+  --color-accent-50: #0e6a37;
+  --color-accent-100: #0e6a37;
+  --color-accent-200: #0e6a37;
+  --color-accent-300: #0e6a37;
+  --color-accent-400: #107c41;
+  --color-accent-500: #107c41;
+  --color-accent-600: #107c41;
+  --color-accent-700: #107c41;
+  --color-accent-800: #0e6a37;
+  --color-accent-900: #0e6a37;
 
-  /* Surfaces: pure-black base, near-black containers */
-  --color-surface: #111111;
-  --color-surface-secondary: #1a1a1a;
-  --color-surface-hover: #242424;
-  --color-background: #000000;
-  --color-background-secondary: #0a0a0a;
+  /* Surfaces: dark gray palette */
+  --color-surface: #1e1e1e;
+  --color-surface-secondary: #1e1e1e;
+  --color-surface-hover: #2d2d2d;
+  --color-background: #121212;
+  --color-background-secondary: #181818;
 
-  /* Text: pure white for primary, warm grays for secondary/tertiary */
+  /* Text: white for primary, warm grays for secondary/tertiary */
   --color-text-primary: #ffffff;
-  --color-text-secondary: #a0a0a0;
-  --color-text-tertiary: #5a5a5a;
+  --color-text-secondary: #cccccc;
+  --color-text-tertiary: #888888;
 
-  /* Borders: subtle but visible against black */
-  --color-border: #222222;
-  --color-border-secondary: #333333;
+  /* Borders: subtle dark lines */
+  --color-border: #2d2d2d;
+  --color-border-secondary: #3d3d3d;
 
-  /* Semantic: vivid against black */
-  --color-success: #059669;
+  /* Semantic */
+  --color-success: #107c41;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
 }

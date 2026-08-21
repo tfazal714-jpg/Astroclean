@@ -592,15 +592,17 @@ export default function App() {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-text-primary">
-      <Header
-        dataset={state.dataset}
-        busy={state.busy}
-        dark={dark}
-        onToggleTheme={handleToggleTheme}
-        onNewDataset={handleNewDataset}
-        onOpenSettings={handleOpenSettings}
-        onOpenMetrics={handleOpenMetrics}
-      />
+      {state.dataset && (
+        <Header
+          dataset={state.dataset}
+          busy={state.busy}
+          dark={dark}
+          onToggleTheme={handleToggleTheme}
+          onNewDataset={handleNewDataset}
+          onOpenSettings={handleOpenSettings}
+          onOpenMetrics={handleOpenMetrics}
+        />
+      )}
 
       {state.error && state.dataset && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-error/30 bg-error/5 px-4 py-2 text-sm text-error">
@@ -647,6 +649,9 @@ export default function App() {
               onFile={handleFile}
               onSample={handleSample}
               onOpenMetrics={handleOpenMetrics}
+              onOpenSettings={handleOpenSettings}
+              onToggleTheme={handleToggleTheme}
+              dark={dark}
             />
           </div>
         )}
