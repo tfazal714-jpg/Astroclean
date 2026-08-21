@@ -1,61 +1,100 @@
 import { useRef, useState } from 'react'
 import {
-  BarChart3,
-  Download,
-  FileUp,
-  HardDrive,
-  KeyRound,
-  ShieldCheck,
+  Home,
+  FilePlus2,
+  FolderOpen,
+  User,
+  Settings,
+  Search,
+  FileSpreadsheet,
+  Mail,
+  Phone,
+  Building2,
+  ChevronRight,
   Sparkle,
-  UserX,
-  Zap,
 } from 'lucide-react'
 import { cn } from '../utils/cn.js'
-import { Badge, Spinner } from './ui.jsx'
-import { FadeIn, SlideIn, Stagger, CountUp, ScaleIn } from './motion/index.jsx'
-import Logo from './Logo.jsx'
+import { Spinner } from './ui.jsx'
 import SamplePickerModal from './SamplePickerModal.jsx'
-import TrustMarquee from './TrustMarquee.jsx'
-import FaqSection from './FaqSection.jsx'
 
-const FEATURES = [
+const NAV_ITEMS = [
+  { icon: Home, label: 'Home', active: true },
+  { icon: FilePlus2, label: 'New', active: false },
+  { icon: FolderOpen, label: 'Open', active: false },
+]
+
+const NAV_BOTTOM = [
+  { icon: User, label: 'Account' },
+  { icon: Settings, label: 'Options' },
+]
+
+const TEMPLATES = [
+  { id: 'blank', label: 'Blank Lead Set', color: '#107c41' },
+  { id: 'email', label: 'Corporate Email Scrub', color: '#107c41' },
+  { id: 'phone', label: 'E.164 Phone Format', color: '#107c41' },
+  { id: 'enrich', label: 'Company Enricher', color: '#107c41' },
+]
+
+const RECENT_FILES = [
   {
-    icon: ShieldCheck,
-    title: 'We never see your data',
-    text: 'Files are processed inside your browser. Nothing is uploaded, stored, or sent to any AstroClean server — there are none.',
+    id: 1,
+    name: 'Lyly\'S Cleaning Services_VERIFIED_SAMPLE.xlsx',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 25',
+    type: 'xlsx',
   },
   {
-    icon: HardDrive,
-    title: '100% on-device engine',
-    text: 'A full DuckDB database compiled to WebAssembly runs the entire pipeline locally, in a background worker.',
+    id: 2,
+    name: 'Pre Unverified 2.csv',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'csv',
   },
   {
-    icon: Zap,
-    title: 'Results in seconds',
-    text: 'No queues, no waiting on a server. Clean, dedupe, normalize and enrich large files as fast as your machine allows.',
+    id: 3,
+    name: 'Pre Sample validated.csv',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'csv',
   },
   {
-    icon: UserX,
-    title: 'No accounts, no tracking',
-    text: 'No sign-up, no cookies, no analytics, no fingerprinting. Open the page and start working.',
+    id: 4,
+    name: 'Pre Sample Unverified - pre filtered Sample.csv',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'csv',
   },
   {
-    icon: KeyRound,
-    title: 'Your AI key, your call',
-    text: 'Optional AI enrichment uses your own provider key — it lives only in your browser and goes only to the provider you pick.',
+    id: 5,
+    name: '1422 Verified Email List.xlsx',
+    path: 'Downloads',
+    date: 'July 23',
+    type: 'xlsx',
   },
   {
-    icon: Download,
-    title: 'Export anytime',
-    text: 'Download the scrubbed result as CSV, TSV or JSON in one click — with undo, redo and reset along the way.',
+    id: 6,
+    name: 'Pre filtered Sample.csv',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'csv',
+  },
+  {
+    id: 7,
+    name: 'Pre Sample.xlsx',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'xlsx',
+  },
+  {
+    id: 8,
+    name: 'Central-Florida-Commercial-Leads-csv.csv',
+    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
+    date: 'July 23',
+    type: 'csv',
   },
 ]
 
-const STEPS = [
-  { n: '01', title: 'Upload', text: 'Drop a lead CSV or TSV — it never leaves your machine.' },
-  { n: '02', title: 'Clean', text: 'Trim, dedupe, normalize emails & phones, fill gaps.' },
-  { n: '03', title: 'Export', text: 'Download the scrubbed dataset as CSV.' },
-]
+const FILTER_TABS = ['Recent', 'Favorites', 'Shared with Me']
 
 export default function UploadView({
   busy,
@@ -67,6 +106,8 @@ export default function UploadView({
 }) {
   const [dragging, setDragging] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [activeFilter, setActiveFilter] = useState('Recent')
+  const [searchQuery, setSearchQuery] = useState('')
   const inputRef = useRef(null)
 
   const handleFiles = (files) => {
@@ -74,211 +115,179 @@ export default function UploadView({
     if (file) onFile(file)
   }
 
-  const hasActivity = Boolean(activity && activity.filesProcessed > 0)
+  const filteredFiles = RECENT_FILES.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-8 sm:px-6 sm:py-12">
-      {/* Hero */}
-      <div className="mb-7 text-center">
-        <FadeIn duration={600}>
-          <Logo
-            markClassName="h-12 w-12 animate-logo-pop"
-            tagline="local-first CSV workspace"
-            className="mb-5 justify-center"
-          />
-        </FadeIn>
-
-        <SlideIn direction="up" delay={80}>
-          <h1 className="mx-auto max-w-xl text-2xl font-semibold leading-tight tracking-tight text-text-primary sm:text-[28px]">
-            Clean your lead lists in seconds —{' '}
-            <span className="text-accent-700">without your data leaving the machine</span>
-          </h1>
-        </SlideIn>
-
-        <SlideIn direction="up" delay={160}>
-          <p className="mx-auto mt-2.5 max-w-lg text-sm leading-5 text-text-secondary">
-            AstroClean scrubs, dedupes, normalizes and enriches B2B lead CSVs with a
-            local DuckDB engine. Drop a file, apply operations, download the result.
-          </p>
-        </SlideIn>
-
-        <Stagger baseDelay={240} step={70} className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-          <Badge tone="accent" className="gap-1 px-2 py-0.5 text-[11px]">
-            <ShieldCheck className="h-3 w-3" /> 100% on-device
-          </Badge>
-          <Badge tone="neutral" className="px-2 py-0.5 text-[11px]">
-            <Zap className="h-3 w-3" /> Results in seconds
-          </Badge>
-          <Badge tone="neutral" className="px-2 py-0.5 text-[11px]">
-            <UserX className="h-3 w-3" /> No accounts
-          </Badge>
-        </Stagger>
-      </div>
-
-      {/* Drop zone */}
-      <ScaleIn delay={200} className="w-full">
-        <div
-          data-dropzone
-          className={cn(
-            'group relative w-full cursor-pointer overflow-hidden rounded-sm border-2 border-dashed bg-surface p-8 text-center transition-colors sm:p-10',
-            dragging
-              ? 'border-accent-600 bg-accent-50'
-              : 'border-border-secondary hover:border-accent-600',
-          )}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragging(false)
-            handleFiles(e.dataTransfer.files)
-          }}
-          onClick={() => inputRef.current?.click()}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,.tsv,text/csv,text/tab-separated-values"
-            className="hidden"
-            onChange={(e) => {
-              handleFiles(e.target.files)
-              e.target.value = ''
-            }}
-          />
-
-          {/* Animated scan line while hovering / dragging */}
-          {!busy && (
-            <span
-              aria-hidden="true"
+    <div className="flex h-full bg-background">
+      {/* Left Navigation Rail */}
+      <nav className="flex w-[72px] flex-col border-r border-border bg-[#181818]">
+        <div className="flex flex-col items-center gap-1 pt-3">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.label}
+              type="button"
               className={cn(
-                'pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent-500 to-transparent',
-                dragging ? 'animate-scan-fast' : 'animate-scan',
+                'flex w-full flex-col items-center gap-1 px-2 py-3 text-[10px] transition-colors',
+                item.active
+                  ? 'border-l-2 border-accent-700 bg-[#1e1e1e] text-accent-700'
+                  : 'border-l-2 border-transparent text-text-tertiary hover:bg-[#1e1e1e] hover:text-text-secondary'
               )}
-            />
-          )}
-
-          {busy ? (
-            <div className="flex flex-col items-center gap-3">
-              <Spinner className="h-6 w-6" />
-              <p className="text-sm text-text-secondary">{busy}</p>
-            </div>
-          ) : (
-            <>
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-sm border border-border bg-surface-secondary transition-transform duration-200 group-hover:scale-105">
-                <FileUp className="h-5 w-5 text-accent-700" />
-              </div>
-              <p className="text-sm font-medium text-text-primary">
-                Drag and drop a CSV here, or click to browse
-              </p>
-              <p className="mt-1 text-xs text-text-tertiary">
-                .csv or .tsv — the first row is treated as the header
-              </p>
-            </>
-          )}
+              onClick={item.label === 'New' ? () => inputRef.current?.click() : undefined}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
-      </ScaleIn>
 
-      {error && (
-        <div className="mt-4 w-full rounded-sm border border-error/40 bg-error/5 px-4 py-3 text-sm text-error">
-          {error}
+        <div className="mt-auto flex flex-col items-center gap-1 pb-3">
+          {NAV_BOTTOM.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className="flex w-full flex-col items-center gap-1 px-2 py-3 text-[10px] text-text-tertiary transition-colors hover:bg-[#1e1e1e] hover:text-text-secondary"
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </nav>
 
-      {/* Trust marquee */}
-      <TrustMarquee />
-
-      {/* Sample + privacy */}
-      <FadeIn delay={300} className="mt-6 flex flex-col items-center gap-3">
-        <button
-          type="button"
-          data-sample-button
-          onClick={() => setPickerOpen(true)}
-          disabled={Boolean(busy)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-700 hover:text-accent-800 disabled:pointer-events-none disabled:opacity-45"
-        >
-          <Sparkle className="h-3.5 w-3.5" />
-          No file handy? Browse sample datasets
-        </button>
-      </FadeIn>
-
-      {/* Activity strip */}
-      {hasActivity && (
-        <FadeIn delay={360} className="w-full">
-          <button
-            type="button"
-            onClick={onOpenMetrics}
-            className="mt-8 flex w-full flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-sm border border-border bg-surface px-4 py-3 text-center transition-colors hover:border-accent-600 sm:justify-between sm:text-left"
-          >
-            <span className="inline-flex items-center gap-2 text-xs font-medium text-text-primary">
-              <BarChart3 className="h-3.5 w-3.5 text-accent-700" />
-              Your activity
-            </span>
-            <span className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 font-mono text-[11px] tabular-nums text-text-secondary">
-              <span>
-                <CountUp value={activity.filesProcessed} className="font-semibold text-text-primary" /> files
-              </span>
-              <span>
-                <CountUp value={activity.totalRows} className="font-semibold text-text-primary" /> rows
-              </span>
-              <span>
-                <CountUp value={activity.opsApplied} className="font-semibold text-text-primary" /> ops
-              </span>
-              <span className="inline-flex items-center gap-1 text-accent-700">
-                View details
-                <span aria-hidden="true">→</span>
-              </span>
-            </span>
-          </button>
-        </FadeIn>
-      )}
-
-      {/* Trust / features */}
-      <Stagger baseDelay={150} step={55} className="mt-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map((feature) => (
-          <div
-            key={feature.title}
-            className="group border border-border bg-surface px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-600 hover:shadow-sm"
-          >
-            <feature.icon className="mb-2 h-4 w-4 text-accent-700 transition-transform duration-200 group-hover:scale-110" />
-            <h3 className="mb-1 text-xs font-semibold text-text-primary">{feature.title}</h3>
-            <p className="text-[11px] leading-4 text-text-tertiary">{feature.text}</p>
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Header Bar */}
+        <div className="flex h-10 items-center justify-between border-b border-border bg-[#181818] px-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-text-primary">AstroClean</span>
           </div>
-        ))}
-      </Stagger>
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-700 text-[10px] font-medium text-white">
+              S
+            </div>
+          </div>
+        </div>
 
-      {/* Steps */}
-      <div className="mt-10 grid w-full grid-cols-1 gap-5 border-t border-border pt-8 sm:grid-cols-3">
-        {STEPS.map((step, i) => (
-          <SlideIn key={step.n} direction="up" delay={i * 90}>
-            <p className="mb-1 font-mono text-[11px] text-accent-700">{step.n}</p>
-            <p className="mb-1 text-xs font-semibold text-text-primary">{step.title}</p>
-            <p className="text-[11px] leading-4 text-text-tertiary">{step.text}</p>
-          </SlideIn>
-        ))}
+        <div className="px-8 py-6">
+          {/* Greeting */}
+          <h1 className="mb-6 text-2xl font-semibold text-text-primary">Good afternoon</h1>
+
+          {/* New Templates Section */}
+          <div className="mb-8">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ChevronRight className="h-4 w-4 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">New</h2>
+              </div>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-sm text-accent-700 hover:text-accent-600"
+              >
+                More templates
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="group flex shrink-0 flex-col items-center"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <div className="mb-2 flex h-[100px] w-[140px] items-center justify-center border border-border bg-surface-secondary transition-colors group-hover:border-accent-700">
+                    <FileSpreadsheet className="h-8 w-8 text-accent-700 opacity-60" />
+                  </div>
+                  <span className="text-xs text-text-secondary">{template.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filter Tabs and Search */}
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="flex gap-2">
+              {FILTER_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={cn(
+                    'rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
+                    activeFilter === tab
+                      ? 'border-accent-700 bg-accent-700 text-white'
+                      : 'border-border text-text-secondary hover:bg-surface-hover'
+                  )}
+                  onClick={() => setActiveFilter(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-[280px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+              <input
+                type="text"
+                placeholder="Search for a file"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 w-full rounded-sm border border-border bg-surface pl-9 pr-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-700 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Recent Files Table */}
+          <div className="border-t border-border">
+            {/* Table Header */}
+            <div className="flex items-center justify-between border-b border-border px-2 py-2">
+              <span className="text-xs font-medium text-text-secondary">Name</span>
+              <span className="text-xs font-medium text-text-secondary">Date modified</span>
+            </div>
+
+            {/* File Rows */}
+            {filteredFiles.length === 0 ? (
+              <div className="py-8 text-center text-sm text-text-tertiary">
+                No files found
+              </div>
+            ) : (
+              filteredFiles.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  className="flex w-full items-center justify-between border-b border-border px-2 py-3 transition-colors hover:bg-[#1e1e1e]"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center bg-accent-700">
+                      <FileSpreadsheet className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-text-primary">{file.name}</p>
+                      <p className="text-xs text-text-tertiary">{file.path}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-text-secondary">{file.date}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Keyboard hint */}
-      <FadeIn delay={150} className="mt-8">
-        <p className="flex items-center justify-center gap-1.5 text-[11px] text-text-tertiary">
-          <kbd className="rounded-sm border border-border-secondary bg-surface-secondary px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">Ctrl</kbd>
-          <span>+</span>
-          <kbd className="rounded-sm border border-border-secondary bg-surface-secondary px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">K</kbd>
-          <span>opens the command palette</span>
-        </p>
-      </FadeIn>
-
-      {/* FAQ */}
-      <FaqSection />
-
-      {/* Footer line */}
-      <FadeIn delay={150} className="mt-10">
-        <p className="text-center text-[10px] text-text-tertiary">
-          AstroClean is free, open on this page, and leaves no trace on your device
-          beyond what you save.
-        </p>
-      </FadeIn>
+      {/* Hidden file input */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,.tsv,text/csv,text/tab-separated-values"
+        className="hidden"
+        onChange={(e) => {
+          handleFiles(e.target.files)
+          e.target.value = ''
+        }}
+      />
 
       {pickerOpen && (
         <SamplePickerModal

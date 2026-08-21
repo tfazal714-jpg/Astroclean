@@ -1008,6 +1008,7 @@ export function summarizeOp(op) {
     default: return ''
   }
 }
+
 /** Parses a JSON array from a model reply, tolerating code fences. */
 function parseJsonArray(content, _expected) {
   let s = String(content ?? '').trim()
