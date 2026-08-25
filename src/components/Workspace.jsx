@@ -410,30 +410,31 @@ export default function WorkbookLayout({
               ))}
             </div>
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-              {sidePanelTab === 'clean' && <OpsPanel ops={CLEAN_OPS} columns={columnNames} busy={busy} providers={providers} onOpenSettings={onOpenSettings} onApply={onApplyOp} />}              {sidePanelTab === 'enrich' && <OpsPanel ops={ENRICH_OPS} columns={columnNames} busy={busy} providers={providers} onOpenSettings={onOpenSettings} onApply={onApplyOp} />}
+              {sidePanelTab === 'clean' && <OpsPanel ops={CLEAN_OPS} columns={columnNames} busy={busy} providers={providers} onOpenSettings={onOpenSettings} onApply={onApplyOp} />}
+              {sidePanelTab === 'enrich' && <OpsPanel ops={ENRICH_OPS} columns={columnNames} busy={busy} providers={providers} onOpenSettings={onOpenSettings} onApply={onApplyOp} />}
               {sidePanelTab === 'ai' && <OpsPanel ops={AI_OPS} columns={columnNames} busy={busy} providers={providers} onOpenSettings={onOpenSettings} onApply={onApplyOp} />}
               {sidePanelTab === 'columns' && (
                 <ColumnsPanel table={dataset.workTable} columns={dataset.columns} refreshKey={workVersion} />
               )}
             </div>
-            <div className="shrink-0 border-t border-[#2d2d2d]"></div>
+            <div className="shrink-0 border-t border-[#2d2d2d]">
               <PipelineCard ops={ops} canUndo={canUndo} canRedo={canRedo} busy={busy} onUndo={onUndo} onRedo={onRedo} onReset={onReset} />
             </div>
           </div>
         )}
 
-        {/* Spreadsheet Grid */</div>}
+        {/* Spreadsheet Grid */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col"></div>
           {/* Toolbar row */}
-          <div className="flex shrink-0 items-center gap-2 border-b border-[#2d2d2d] bg-[#1e1e1e] px-3 py-1.5"></div>
-            <button type="button" onClick={() => setSidePanel(sidePanel ? null : true)} className="rounded px-2 py-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d] hover:text-white"></button>
+          <div className="flex shrink-0 items-center gap-2 border-b border-[#2d2d2d] bg-[#1e1e1e] px-3 py-1.5">
+            <button type="button" onClick={() => setSidePanel(sidePanel ? null : true)} className="rounded px-2 py-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d] hover:text-white">
               {sidePanel ? 'Hide Panel' : 'Show Panel'}
             </button>
             {busyLabel && (
-              <span className="rounded bg-[#107c41]/20 px-2 py-0.5 text-[10px] text-[#107c41]"></span>{busyLabel}</span>
+              <span className="rounded bg-[#107c41]/20 px-2 py-0.5 text-[10px] text-[#107c41]">{busyLabel}</span></span>
             )}
-            <div className="ml-auto flex items-center gap-2"></div>
-              <button type="button" onClick={onExport} className="flex items-center gap-1 rounded-sm bg-[#107c41] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#0e6a37]"></button>
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={onExport} className="flex items-center gap-1 rounded-sm bg-[#107c41] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#0e6a37]">
                 Export CSV
               </button>
             </div>
@@ -475,8 +476,8 @@ export default function WorkbookLayout({
       <div className="flex h-7 shrink-0 items-center border-t border-[#2d2d2d] bg-[#181818] px-3">
         {/* Sheet tabs */}
         <div className="flex items-center gap-1">
-          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]"></button>&#9664;</button>
-          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]"></button>&#9654;</button>
+          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]">&#9664;</button>
+          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]">&#9654;</button>
           {sheets.map((s) => (
             <button
               key={s.id}
@@ -486,29 +487,29 @@ export default function WorkbookLayout({
                 'rounded-sm px-3 py-1 text-[10px] font-medium',
                 activeSheet === s.id ? 'bg-white text-black' : 'text-[#888888] hover:bg-[#2d2d2d]'
               )}
-            ></button>
+            >
               {s.name}
             </button>
           ))}
-          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]" title="Add sheet">+</button>
+          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]" title="Add sheet">+</button</button>>
         </div>
 
-        <div className="ml-auto flex items-center gap-3"></div>
-          <span className="text-[10px] text-[#888888]"></span>Ready</span>
-          <span className="text-[10px] text-[#888888]"></span>&#9881; Accessibility: Good to go</span>
-          <div className="flex items-center gap-1 text-[10px] text-[#888888]"></div>
-            <button type="button" onClick={() => setZoom(Math.max(25, zoom - 10))} className="hover:text-white"></button>-</button>
-            <span className="w-8 text-center"></span>{zoom}%</span>
-            <button type="button" onClick={() => setZoom(Math.min(400, zoom + 10))} className="hover:text-white"></button>+</button>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-[10px] text-[#888888]">Ready</span>
+          <span className="text-[10px] text-[#888888]">&#9881; Accessibility: Good to go</span</span>>
+          <div className="flex items-center gap-1 text-[10px] text-[#888888]">
+            <button type="button" onClick={() => setZoom(Math.max(25, zoom - 10))} className="hover:text-white">-</button>
+            <span className="w-8 text-center">{zoom}%</spa</span>n>
+            <button type="button" onClick={() => setZoom(Math.min(400, zoom + 10))} className="hover:text-white">+</button</button>>
           </div>
         </div>
       </div>
 
       {/* Context Menu */}
       {contextMenu && (
-        <></>
+        <>
           <div className="fixed inset-0 z-50" onClick={closeContextMenu} />
-          <div className="fixed z-50 w-52 border border-[#2d2d2d] bg-[#1e1e1e] shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }}></div>
+          <div className="fixed z-50 w-52 border border-[#2d2d2d] bg-[#1e1e1e] shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }}>
             <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[#888888]"></div>
               {contextMenu.colName} &middot; Row {contextMenu.rowNum}
             </div>
@@ -522,7 +523,7 @@ export default function WorkbookLayout({
                   type="button"
                   onClick={() => handleContextAction(item.id)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-[11px] text-[#cccccc] hover:bg-[#2d2d2d]"
-                ></button>
+                >
                   {item.label}
                 </button>
               )
@@ -531,5 +532,4 @@ export default function WorkbookLayout({
         </>
       )}
     </div>
-  )
-}
+  )}
