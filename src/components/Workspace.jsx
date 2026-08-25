@@ -424,14 +424,14 @@ export default function WorkbookLayout({
         )}
 
         {/* Spreadsheet Grid */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col"></div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Toolbar row */}
           <div className="flex shrink-0 items-center gap-2 border-b border-[#2d2d2d] bg-[#1e1e1e] px-3 py-1.5">
             <button type="button" onClick={() => setSidePanel(sidePanel ? null : true)} className="rounded px-2 py-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d] hover:text-white">
               {sidePanel ? 'Hide Panel' : 'Show Panel'}
             </button>
             {busyLabel && (
-              <span className="rounded bg-[#107c41]/20 px-2 py-0.5 text-[10px] text-[#107c41]">{busyLabel}</span></span>
+              <span className="rounded bg-[#107c41]/20 px-2 py-0.5 text-[10px] text-[#107c41]">{busyLabel}</span>
             )}
             <div className="ml-auto flex items-center gap-2">
               <button type="button" onClick={onExport} className="flex items-center gap-1 rounded-sm bg-[#107c41] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#0e6a37]">
@@ -491,16 +491,16 @@ export default function WorkbookLayout({
               {s.name}
             </button>
           ))}
-          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]" title="Add sheet">+</button</button>>
+          <button type="button" className="rounded px-1 text-[10px] text-[#888888] hover:bg-[#2d2d2d]" title="Add sheet">+</button>
         </div>
 
         <div className="ml-auto flex items-center gap-3">
           <span className="text-[10px] text-[#888888]">Ready</span>
-          <span className="text-[10px] text-[#888888]">&#9881; Accessibility: Good to go</span</span>>
+          <span className="text-[10px] text-[#888888]">&#9881; Accessibility: Good to go</span>
           <div className="flex items-center gap-1 text-[10px] text-[#888888]">
             <button type="button" onClick={() => setZoom(Math.max(25, zoom - 10))} className="hover:text-white">-</button>
-            <span className="w-8 text-center">{zoom}%</spa</span>n>
-            <button type="button" onClick={() => setZoom(Math.min(400, zoom + 10))} className="hover:text-white">+</button</button>>
+            <span className="w-8 text-center">{zoom}%</span>
+            <button type="button" onClick={() => setZoom(Math.min(400, zoom + 10))} className="hover:text-white">+</button>
           </div>
         </div>
       </div>
@@ -510,7 +510,7 @@ export default function WorkbookLayout({
         <>
           <div className="fixed inset-0 z-50" onClick={closeContextMenu} />
           <div className="fixed z-50 w-52 border border-[#2d2d2d] bg-[#1e1e1e] shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }}>
-            <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[#888888]"></div>
+            <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[#888888]">
               {contextMenu.colName} &middot; Row {contextMenu.rowNum}
             </div>
             <div className="border-t border-[#2d2d2d]" />
@@ -532,4 +532,5 @@ export default function WorkbookLayout({
         </>
       )}
     </div>
-  )}
+  )
+}
