@@ -1,15 +1,5 @@
 import { useRef, useState } from 'react'
-import {
-  Home,
-  FilePlus2,
-  FolderOpen,
-  User,
-  Settings,
-  Search,
-  FileSpreadsheet,
-  ChevronRight,
-  X,
-} from 'lucide-react'
+import { Home, FilePlus2, FolderOpen, User, Settings, Search, FileSpreadsheet, ChevronRight, X } from 'lucide-react'
 import { cn } from '../utils/cn.js'
 import { Spinner } from './ui.jsx'
 import SamplePickerModal from './SamplePickerModal.jsx'
@@ -46,62 +36,14 @@ const TEMPLATES = [
 ]
 
 const RECENT_FILES = [
-  {
-    id: 1,
-    name: 'Lyly\'S Cleaning Services_VERIFIED_SAMPLE.xlsx',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 25',
-    sampleId: 'leads',
-  },
-  {
-    id: 2,
-    name: 'Pre Unverified 2.csv',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'products',
-  },
-  {
-    id: 3,
-    name: 'Pre Sample validated.csv',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'orders',
-  },
-  {
-    id: 4,
-    name: 'Pre Sample Unverified - pre filtered Sample.csv',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'tickets',
-  },
-  {
-    id: 5,
-    name: '1422 Verified Email List.xlsx',
-    path: 'Downloads',
-    date: 'July 23',
-    sampleId: 'invoices',
-  },
-  {
-    id: 6,
-    name: 'Pre filtered Sample.csv',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'employees',
-  },
-  {
-    id: 7,
-    name: 'Pre Sample.xlsx',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'leads',
-  },
-  {
-    id: 8,
-    name: 'Central-Florida-Commercial-Leads-csv.csv',
-    path: 'Downloads \u00BB Lyly\'S Cleaning Services',
-    date: 'July 23',
-    sampleId: 'leads',
-  },
+  { id: 1, name: "Lyly'S Cleaning Services_VERIFIED_SAMPLE.xlsx", path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 25', sampleId: 'leads' },
+  { id: 2, name: 'Pre Unverified 2.csv', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'products' },
+  { id: 3, name: 'Pre Sample validated.csv', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'orders' },
+  { id: 4, name: 'Pre Sample Unverified - pre filtered Sample.csv', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'tickets' },
+  { id: 5, name: '1422 Verified Email List.xlsx', path: 'Downloads', date: 'July 23', sampleId: 'invoices' },
+  { id: 6, name: 'Pre filtered Sample.csv', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'employees' },
+  { id: 7, name: 'Pre Sample.xlsx', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'leads' },
+  { id: 8, name: 'Central-Florida-Commercial-Leads-csv.csv', path: "Downloads \u00BB Lyly'S Cleaning Services", date: 'July 23', sampleId: 'leads' },
 ]
 
 const FILTER_TABS = ['Recent', 'Favorites', 'Shared with Me']
@@ -113,17 +55,7 @@ function getGreeting() {
   return 'Good evening'
 }
 
-export default function UploadView({
-  busy,
-  error,
-  onFile,
-  onSample,
-  activity,
-  onOpenMetrics,
-  onOpenSettings,
-  onToggleTheme,
-  dark,
-}) {
+export default function UploadView({ busy, error, onFile, onSample, activity, onOpenMetrics, onOpenSettings, onToggleTheme, dark }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [activeFilter, setActiveFilter] = useState('Recent')
   const [searchQuery, setSearchQuery] = useState('')
@@ -135,53 +67,28 @@ export default function UploadView({
     try {
       const saved = localStorage.getItem('astroclean_profile')
       return saved ? JSON.parse(saved) : { name: '', email: '' }
-    } catch {
-      return { name: '', email: '' }
-    }
+    } catch { return { name: '', email: '' } }
   })
 
-  const handleFiles = (files) => {
-    const file = files && files[0]
-    if (file) onFile(file)
-  }
+  const handleFiles = (files) => { const file = files && files[0]; if (file) onFile(file) }
 
   const handleNavClick = (id) => {
-    if (id === 'new') {
-      const entry = SAMPLE_GALLERY.find((s) => s.id === 'leads')
-      if (entry) onSample(entry)
-    } else if (id === 'open') {
-      inputRef.current?.click()
-    } else if (id === 'options') {
-      if (onOpenSettings) onOpenSettings()
-    } else if (id === 'account') {
-      setProfileOpen(true)
-    } else {
-      setActiveNav(id)
-    }
+    if (id === 'new') { const entry = SAMPLE_GALLERY.find((s) => s.id === 'leads'); if (entry) onSample(entry) }
+    else if (id === 'open') { inputRef.current?.click() }
+    else if (id === 'options') { if (onOpenSettings) onOpenSettings() }
+    else if (id === 'account') { setProfileOpen(true) }
+    else { setActiveNav(id) }
   }
 
-  const handleTemplateClick = (template) => {
-    const entry = SAMPLE_GALLERY.find((s) => s.id === template.sampleId)
-    if (entry) onSample(entry)
-  }
-
-  const handleRecentFileClick = (file) => {
-    const entry = SAMPLE_GALLERY.find((s) => s.id === file.sampleId)
-    if (entry) onSample(entry)
-  }
+  const handleTemplateClick = (template) => { const entry = SAMPLE_GALLERY.find((s) => s.id === template.sampleId); if (entry) onSample(entry) }
+  const handleRecentFileClick = (file) => { const entry = SAMPLE_GALLERY.find((s) => s.id === file.sampleId); if (entry) onSample(entry) }
 
   const handleSaveProfile = () => {
-    try {
-      localStorage.setItem('astroclean_profile', JSON.stringify(userProfile))
-    } catch {
-      // localStorage unavailable
-    }
+    try { localStorage.setItem('astroclean_profile', JSON.stringify(userProfile)) } catch {}
     setProfileOpen(false)
   }
 
-  const filteredFiles = RECENT_FILES.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredFiles = RECENT_FILES.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   return (
     <div className="flex h-full bg-[#121212]">
@@ -205,7 +112,6 @@ export default function UploadView({
             </button>
           ))}
         </div>
-
         <div className="mt-auto flex flex-col items-center gap-1 pb-3">
           {NAV_BOTTOM.map((item) => (
             <button
@@ -223,33 +129,22 @@ export default function UploadView({
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Greeting */}
         <h1 className="mb-6 text-2xl font-semibold text-white">{getGreeting()}</h1>
 
-        {/* New Templates Section */}
+        {/* New Templates */}
         <div className="mb-8">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ChevronRight className="h-4 w-4 text-[#cccccc]" />
               <h2 className="text-lg font-semibold text-white">New</h2>
             </div>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-sm text-[#107c41] hover:text-[#0e6a37]"
-            >
-              More templates
-              <ChevronRight className="h-4 w-4" />
+            <button type="button" className="flex items-center gap-1 text-sm text-[#107c41] hover:text-[#0e6a37]">
+              More templates <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-
           <div className="flex gap-4 overflow-x-auto pb-2">
             {TEMPLATES.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                className="group flex shrink-0 flex-col items-center"
-                onClick={() => handleTemplateClick(template)}
-              >
+              <button key={template.id} type="button" className="group flex shrink-0 flex-col items-center" onClick={() => handleTemplateClick(template)}>
                 <div className="mb-2 flex h-[100px] w-[140px] items-center justify-center border border-[#2d2d2d] bg-[#1e1e1e] transition-colors group-hover:border-[#107c41]">
                   <FileSpreadsheet className="h-8 w-8 text-[#107c41] opacity-60" />
                 </div>
@@ -268,9 +163,7 @@ export default function UploadView({
                 type="button"
                 className={cn(
                   'rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
-                  activeFilter === tab
-                    ? 'border-[#107c41] bg-[#107c41] text-white'
-                    : 'border-[#2d2d2d] text-[#cccccc] hover:bg-[#1e1e1e]'
+                  activeFilter === tab ? 'border-[#107c41] bg-[#107c41] text-white' : 'border-[#2d2d2d] text-[#cccccc] hover:bg-[#1e1e1e]'
                 )}
                 onClick={() => setActiveFilter(tab)}
               >
@@ -278,7 +171,6 @@ export default function UploadView({
               </button>
             ))}
           </div>
-
           <div className="relative w-[280px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#888888]" />
             <input
@@ -293,17 +185,12 @@ export default function UploadView({
 
         {/* Recent Files Table */}
         <div className="border-t border-[#2d2d2d]">
-          {/* Table Header */}
           <div className="flex items-center justify-between border-b border-[#2d2d2d] px-2 py-2">
             <span className="text-xs font-medium text-[#888888]">Name</span>
             <span className="text-xs font-medium text-[#888888]">Date modified</span>
           </div>
-
-          {/* File Rows */}
           {filteredFiles.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[#888888]">
-              No files found
-            </div>
+            <div className="py-8 text-center text-sm text-[#888888]">No files found</div>
           ) : (
             filteredFiles.map((file) => (
               <button
@@ -328,78 +215,31 @@ export default function UploadView({
         </div>
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv,.tsv,.xlsx,.xls,.parquet,.duckdb,.db,text/csv,text/tab-separated-values"
-        className="hidden"
-        onChange={(e) => {
-          handleFiles(e.target.files)
-          e.target.value = ''
-        }}
-      />
+      <input ref={inputRef} type="file" accept=".csv,.tsv,.xlsx,.xls,.parquet,.duckdb,.db,text/csv,text/tab-separated-values" className="hidden" onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }} />
 
       {pickerOpen && (
-        <SamplePickerModal
-          onPick={(entry) => {
-            setPickerOpen(false)
-            onSample(entry)
-          }}
-          onClose={() => setPickerOpen(false)}
-        />
+        <SamplePickerModal onPick={(entry) => { setPickerOpen(false); onSample(entry) }} onClose={() => setPickerOpen(false)} />
       )}
 
-      {/* Profile Modal */}
       {profileOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-[400px] border border-[#2d2d2d] bg-[#1e1e1e] p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Account Profile</h3>
-              <button
-                type="button"
-                onClick={() => setProfileOpen(false)}
-                className="text-[#888888] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <button type="button" onClick={() => setProfileOpen(false)} className="text-[#888888] hover:text-white"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className="mb-1 block text-xs text-[#888888]">Display Name</label>
-                <input
-                  type="text"
-                  value={userProfile.name}
-                  onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
-                  className="h-8 w-full border border-[#2d2d2d] bg-[#121212] px-3 text-sm text-white placeholder:text-[#888888] focus:border-[#107c41] focus:outline-none"
-                  placeholder="Enter your name"
-                />
+                <input type="text" value={userProfile.name} onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })} className="h-8 w-full border border-[#2d2d2d] bg-[#121212] px-3 text-sm text-white placeholder:text-[#888888] focus:border-[#107c41] focus:outline-none" placeholder="Enter your name" />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-[#888888]">Email</label>
-                <input
-                  type="email"
-                  value={userProfile.email}
-                  onChange={(e) => setUserProfile({ ...userProfile, email: e.target.value })}
-                  className="h-8 w-full border border-[#2d2d2d] bg-[#121212] px-3 text-sm text-white placeholder:text-[#888888] focus:border-[#107c41] focus:outline-none"
-                  placeholder="Enter your email"
-                />
+                <input type="email" value={userProfile.email} onChange={(e) => setUserProfile({ ...userProfile, email: e.target.value })} className="h-8 w-full border border-[#2d2d2d] bg-[#121212] px-3 text-sm text-white placeholder:text-[#888888] focus:border-[#107c41] focus:outline-none" placeholder="Enter your email" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setProfileOpen(false)}
-                  className="px-4 py-1.5 text-sm text-[#888888] hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveProfile}
-                  className="bg-[#107c41] px-4 py-1.5 text-sm text-white hover:bg-[#0e6a37]"
-                >
-                  Save
-                </button>
+                <button type="button" onClick={() => setProfileOpen(false)} className="px-4 py-1.5 text-sm text-[#888888] hover:text-white">Cancel</button>
+                <button type="button" onClick={handleSaveProfile} className="bg-[#107c41] px-4 py-1.5 text-sm text-white hover:bg-[#0e6a37]">Save</button>
               </div>
             </div>
           </div>

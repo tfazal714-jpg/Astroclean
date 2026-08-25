@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowUp, ArrowUpDown, AlertTriangle, Copy, SearchX } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, AlertTriangle, SearchX } from 'lucide-react'
 import { countRowsWhere, fetchPage } from '../services/duckdb.js'
 import { formatCellValue, formatNumber, truncate } from '../utils/format.js'
 import { cn } from '../utils/cn.js'
 import { Spinner } from './ui.jsx'
 import GridToolbar from './GridToolbar.jsx'
 
-const ROW_NUM_WIDTH = 56
+const ROW_NUM_WIDTH = 48
 
 const ROW_HEIGHTS = {
-  compact: 28,
-  comfortable: 32,
+  compact: 24,
+  comfortable: 28,
 }
 
 const q = (name) => `"${String(name).replace(/"/g, '""')}"`
 
-/** Builds a LIKE pattern for search with % and _ escaped. */
 function likePattern(term) {
   const escaped = String(term)
     .replace(/\\/g, '\\\\')
@@ -26,7 +25,6 @@ function likePattern(term) {
   return `'%${escaped}%'`
 }
 
-/** WHERE clause matching `term` against any of the given columns. */
 function searchWhere(term, columns) {
   const t = String(term ?? '').trim()
   if (!t) return null
@@ -37,6 +35,16 @@ function searchWhere(term, columns) {
     .join(' OR ')
 }
 
+function colLetter(index) {
+  let result = ''
+  let n = index
+  while (n >= 0) {
+    result = String.fromCharCode(65 + (n % 26)) + result
+    n = Math.floor(n / 26) - 1
+  }
+  return result
+}
+
 export default function DataGrid({
   table,
   columns,
@@ -45,27 +53,33 @@ export default function DataGrid({
   density = 'comfortable',
   onDensityChange,
   onOpenQuality,
-  onRowCountChange,
+  onContextMenu,
+  activeCell,
+  onCellSelect,
+  onCellDoubleClick,
+  cellEditing,
+  cellValue,
+  onCellEdit,
+  onCellCommit,
 }) {
   const ROW_HEIGHT = ROW_HEIGHTS[density] ?? ROW_HEIGHTS.comfortable
 
   const [rows, setRows] = useState([])
   const [offset, setOffset] = useState(0)
-  const [sort, setSort] = useState(null) // { column, dir }
+  const [sort, setSort] = useState(null)
   const [search, setSearch] = useState('')
   const [visible, setVisible] = useState(() => columns.map((c) => c.name))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [copiedCell, setCopiedCell] = useState(null)
 
   const scrollRef = useRef(null)
+  const editInputRef = useRef(null)
 
   const visibleColumns = useMemo(
     () => columns.filter((c) => visible.includes(c.name)),
     [columns, visible],
   )
 
-  // Reset paging + sort + search whenever the underlying table changes.
   useEffect(() => {
     setRows([])
     setOffset(0)
@@ -75,33 +89,16 @@ export default function DataGrid({
 
   const where = useMemo(() => searchWhere(search, columns), [search, columns])
 
-  // Count matches so the footer reflects the filtered set.
   const [matchCount, setMatchCount] = useState(rowCount)
   useEffect(() => {
     let cancelled = false
-    if (!where) {
-      setMatchCount(rowCount)
-      return undefined
-    }
-    countRowsWhere(table, where)
-      .then((n) => {
-        if (!cancelled) {
-          setMatchCount(n)
-          onRowCountChange?.(n)
-        }
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!where) { setMatchCount(rowCount); return undefined }
+    countRowsWhere(table, where).then((n) => { if (!cancelled) setMatchCount(n) }).catch(() => {})
+    return () => { cancelled = true }
   }, [table, where, rowCount])
 
   const hasMore = offset + rows.length < matchCount
 
-  // Fetch the current page from DuckDB. The work table is created by the
-  // pipeline rebuild which runs asynchronously after the workspace mounts, so
-  // a missing-table error is retried briefly before surfacing.
   useEffect(() => {
     if (!table || visibleColumns.length === 0) return
     let cancelled = false
@@ -123,31 +120,21 @@ export default function DataGrid({
           return
         } catch (err) {
           const missing = /does not exist/i.test(err?.message ?? '')
-          if (missing && retries < 5 && !cancelled) {
-            retries += 1
-            await new Promise((r) => setTimeout(r, 400))
-            continue
-          }
+          if (missing && retries < 5 && !cancelled) { retries += 1; await new Promise((r) => setTimeout(r, 400)); continue }
           if (!cancelled) setError(err?.message || 'Failed to load rows')
           return
         }
       }
     }
 
-    run().finally(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    run().finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [table, refreshKey, offset, sort, where, visibleColumns.length])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 320
-    if (nearBottom && hasMore && !loading) {
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 320 && hasMore && !loading) {
       setOffset((o) => o + 500)
     }
   }, [hasMore, loading])
@@ -162,50 +149,19 @@ export default function DataGrid({
     })
   }, [])
 
-  const handleSearch = useCallback((term) => {
-    setRows([])
-    setOffset(0)
-    setSearch(term)
-  }, [])
-
+  const handleSearch = useCallback((term) => { setRows([]); setOffset(0); setSearch(term) }, [])
   const handleToggleColumn = useCallback((name) => {
-    setVisible((prev) =>
-      prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name],
-    )
+    setVisible((prev) => prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name])
   }, [])
-
   const handleToggleAllColumns = useCallback((show) => {
     setVisible(show ? columns.map((c) => c.name) : [])
   }, [columns])
 
-  const handleCopyCell = useCallback(async (text) => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-      }
-      setCopiedCell(text)
-      window.setTimeout(() => setCopiedCell(null), 1200)
-    } catch {
-      // Clipboard unavailable — ignore.
+  useEffect(() => {
+    if (cellEditing && editInputRef.current) {
+      editInputRef.current.focus()
     }
-  }, [])
-
-  const handleCopyPage = useCallback(async () => {
-    if (rows.length === 0) return
-    const lines = [visibleColumns.map((c) => c.name).join(',')]
-    for (const row of rows) {
-      lines.push(visibleColumns.map((c) => String(row?.[c.name] ?? '')).join(','))
-    }
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(lines.join('\n'))
-      }
-      setCopiedCell('__PAGE__')
-      window.setTimeout(() => setCopiedCell(null), 1400)
-    } catch {
-      // Ignore.
-    }
-  }, [rows, visibleColumns])
+  }, [cellEditing])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -216,8 +172,7 @@ export default function DataGrid({
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
   const padTop = virtualItems.length > 0 ? virtualItems[0].start : 0
-  const padBottom =
-    virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0
+  const padBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0
 
   const totalWidth = ROW_NUM_WIDTH + visibleColumns.length * 176
   const isEmpty = rows.length === 0 && !loading && !error
@@ -225,7 +180,6 @@ export default function DataGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Toolbar */}
       <GridToolbar
         columns={columns}
         search={search}
@@ -236,83 +190,45 @@ export default function DataGrid({
         density={density}
         onDensityChange={onDensityChange}
         onOpenQuality={onOpenQuality}
-        onCopyPage={handleCopyPage}
-        copiedPage={copiedCell === '__PAGE__'}
       />
 
-      {/* Scroll container */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="scrollbar-thin min-h-0 flex-1 overflow-auto bg-surface"
-      >
+      <div ref={scrollRef} onScroll={handleScroll} className="scrollbar-thin min-h-0 flex-1 overflow-auto bg-[#121212]">
         {isEmpty ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-text-tertiary">
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-[#888888]">
             {searching ? (
               <>
                 <SearchX className="h-5 w-5" />
-                <p className="text-sm">No rows match “{search}”</p>
-                <button
-                  type="button"
-                  onClick={() => handleSearch('')}
-                  className="text-xs font-medium text-accent-700 hover:underline"
-                >
-                  Clear search
-                </button>
-              </>
-            ) : visibleColumns.length === 0 ? (
-              <>
-                <ColumnsHidden />
-                <p className="text-sm">All columns are hidden</p>
+                <p className="text-sm">No rows match "{search}"</p>
+                <button type="button" onClick={() => handleSearch('')} className="text-xs font-medium text-[#107c41] hover:underline">Clear search</button>
               </>
             ) : (
               <p className="text-sm">No rows to display</p>
             )}
           </div>
         ) : (
-          <table
-            className="border-collapse text-xs"
-            style={{ minWidth: totalWidth, width: 'max-content' }}
-          >
+          <table className="border-collapse text-[11px]" style={{ minWidth: totalWidth, width: 'max-content' }}>
             <thead className="sticky top-0 z-20">
-              <tr className="border-b border-border bg-surface">
-                <th
-                  className="sticky left-0 z-30 border-r border-border bg-surface px-2 text-right font-medium text-text-tertiary"
-                  style={{ width: ROW_NUM_WIDTH, minWidth: ROW_NUM_WIDTH }}
-                >
+              <tr className="border-b border-[#2d2d2d] bg-[#181818]">
+                <th className="sticky left-0 z-30 border-r border-[#2d2d2d] bg-[#181818] px-1 text-right font-medium text-[#888888]" style={{ width: ROW_NUM_WIDTH, minWidth: ROW_NUM_WIDTH }}>
                   #
                 </th>
-                {visibleColumns.map((col) => {
+                {visibleColumns.map((col, i) => {
                   const active = sort?.column === col.name
                   return (
-                    <th
-                      key={col.name}
-                      className="border-b border-border bg-surface px-2"
-                      style={{ width: 176, minWidth: 176 }}
-                    >
+                    <th key={col.name} className="border-r border-[#2d2d2d] bg-[#181818] px-1" style={{ width: 176, minWidth: 176 }}>
                       <button
                         type="button"
                         onClick={() => handleSort(col.name)}
                         title={`Sort by ${col.name}`}
                         className={cn(
-                          'flex h-7 w-full items-center gap-1.5 text-left text-xs font-medium hover:text-text-primary',
-                          active ? 'text-text-primary' : 'text-text-secondary',
+                          'flex h-6 w-full items-center gap-1 text-left text-[10px] font-medium hover:text-white',
+                          active ? 'text-white' : 'text-[#888888]'
                         )}
                       >
+                        <span className="font-mono text-[9px] text-[#107c41]">{colLetter(i)}</span>
                         <span className="truncate">{col.name}</span>
-                        <span className="shrink-0 font-mono text-[9px] uppercase text-text-tertiary">
-                          {col.type}
-                        </span>
-                        <span className="ml-auto shrink-0 text-text-tertiary">
-                          {active ? (
-                            sort.dir === 'ASC' ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3" />
-                            )
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
+                        <span className="ml-auto shrink-0 text-[#888888]">
+                          {active ? (sort.dir === 'ASC' ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />) : <ArrowUpDown className="h-2.5 w-2.5 opacity-30" />}
                         </span>
                       </button>
                     </th>
@@ -321,124 +237,86 @@ export default function DataGrid({
               </tr>
             </thead>
             <tbody>
-              {padTop > 0 && (
-                <tr style={{ height: padTop }} aria-hidden="true" />
-              )}
+              {padTop > 0 && <tr style={{ height: padTop }} aria-hidden="true" />}
               {virtualItems.map((vi) => {
                 const row = rows[vi.index]
                 const rowNum = offset + vi.index + 1
-                const parity = vi.index % 2 === 0 ? 'bg-surface' : 'bg-surface-secondary'
+                const parity = vi.index % 2 === 0 ? 'bg-[#121212]' : 'bg-[#161616]'
                 return (
-                  <tr
-                    key={offset + vi.index}
-                    className="group border-b border-border/70"
-                    style={{ height: ROW_HEIGHT }}
-                  >
+                  <tr key={offset + vi.index} className="group border-b border-[#2d2d2d]/50" style={{ height: ROW_HEIGHT }}>
                     <td
                       className={cn(
-                        'sticky left-0 z-10 border-r border-border/70 px-2 text-right font-mono text-[11px] text-text-tertiary',
-                        parity,
-                        'group-hover:bg-surface-hover',
+                        'sticky left-0 z-10 border-r border-[#2d2d2d]/50 px-1 text-right font-mono text-[10px] text-[#888888]',
+                        parity
                       )}
                       style={{ width: ROW_NUM_WIDTH, minWidth: ROW_NUM_WIDTH }}
                     >
                       {formatNumber(rowNum)}
                     </td>
-                    {visibleColumns.map((col) => {
+                    {visibleColumns.map((col, colIdx) => {
                       const text = formatCellValue(row?.[col.name])
                       const empty = text === ''
-                      const justCopied = copiedCell === text && text !== ''
+                      const isActive = activeCell && activeCell.row === vi.index && activeCell.col === colIdx
                       return (
                         <td
                           key={col.name}
                           className={cn(
-                            'px-2 font-mono',
+                            'px-1 font-mono border-r border-[#2d2d2d]/30',
                             parity,
-                            'group-hover:bg-surface-hover',
-                            empty ? 'text-text-tertiary/70' : 'text-text-primary',
+                            isActive ? 'outline outline-1 outline-[#107c41] z-10' : '',
+                            empty ? 'text-[#888888]/50' : 'text-[#cccccc]'
                           )}
                           style={{ width: 176, minWidth: 176, maxWidth: 176 }}
+                          onClick={() => onCellSelect?.(vi.index, colIdx)}
+                          onDoubleClick={() => onCellDoubleClick?.(vi.index, colIdx, text === '—' ? '' : text)}
+                          onContextMenu={(e) => onContextMenu?.(e, col.name, rowNum)}
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleCopyCell(text)}
-                            title={empty ? '(empty)' : `Copy: ${text}`}
-                            className="flex w-full items-center gap-1 truncate text-left"
-                          >
-                            <span className="block min-w-0 flex-1 truncate">
-                              {empty ? '—' : truncate(text, 46)}
-                            </span>
-                            {justCopied && (
-                              <Copy className="h-3 w-3 shrink-0 text-success" aria-label="Copied" />
-                            )}
-                          </button>
+                          {isActive && cellEditing ? (
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={cellValue}
+                              onChange={(e) => onCellEdit?.(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { onCellCommit?.(); onCellSelect?.(vi.index + 1, colIdx) }
+                                if (e.key === 'Tab') { e.preventDefault(); onCellCommit?.(); onCellSelect?.(vi.index, colIdx + 1) }
+                                if (e.key === 'Escape') onCellCommit?.()
+                              }}
+                              onBlur={() => onCellCommit?.()}
+                              className="h-full w-full border-none bg-[#1e1e1e] px-1 text-[11px] text-white outline-none"
+                            />
+                          ) : (
+                            <span className="block min-w-0 truncate">{empty ? '' : truncate(text, 46)}</span>
+                          )}
                         </td>
                       )
                     })}
                   </tr>
                 )
               })}
-              {padBottom > 0 && (
-                <tr style={{ height: padBottom }} aria-hidden="true" />
-              )}
+              {padBottom > 0 && <tr style={{ height: padBottom }} aria-hidden="true" />}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Footer status bar */}
-      <div className="flex h-8 shrink-0 items-center gap-2 border-t border-border bg-surface px-3 text-[11px] text-text-tertiary">
+      <div className="flex h-6 shrink-0 items-center gap-2 border-t border-[#2d2d2d] bg-[#181818] px-3 text-[10px] text-[#888888]">
         {loading && rows.length === 0 ? (
-          <>
-            <Spinner className="h-3 w-3" />
-            Loading rows…
-          </>
+          <><Spinner className="h-3 w-3" /> Loading rows...</>
         ) : error ? (
-          <span className="inline-flex items-center gap-1.5 text-error">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {error}
-          </span>
+          <span className="inline-flex items-center gap-1.5 text-red-400"><AlertTriangle className="h-3 w-3" />{error}</span>
         ) : (
           <>
             <span className="font-mono tabular-nums">
-              {formatNumber(Math.min(offset + rows.length, matchCount))}
-              {' / '}
-              {formatNumber(matchCount)} rows
-              {searching && <span className="text-text-tertiary"> (filtered)</span>}
+              {formatNumber(Math.min(offset + rows.length, matchCount))} / {formatNumber(matchCount)} rows
+              {searching && <span className="text-[#888888]"> (filtered)</span>}
             </span>
-            {sort && (
-              <span className="ml-auto hidden truncate font-mono text-text-tertiary sm:inline">
-                sorted by {sort.column} {sort.dir.toLowerCase()}
-              </span>
-            )}
-            <span className="ml-auto hidden text-text-tertiary sm:inline">
-              click a cell to copy
-            </span>
-            {loading && <span className="ml-auto inline-flex items-center gap-1.5">Loading more…</span>}
-            {!hasMore && rows.length > 0 && (
-              <span className="ml-auto text-text-tertiary">End of data</span>
-            )}
+            {sort && <span className="ml-auto hidden truncate font-mono text-[#888888] sm:inline">sorted by {sort.column} {sort.dir.toLowerCase()}</span>}
+            {loading && <span className="ml-auto inline-flex items-center gap-1.5">Loading more...</span>}
+            {!hasMore && rows.length > 0 && <span className="ml-auto text-[#888888]">End of data</span>}
           </>
         )}
       </div>
     </div>
-  )
-}
-
-function ColumnsHidden() {
-  return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-sm border border-border bg-surface-secondary">
-      <Columns3Icon />
-    </div>
-  )
-}
-
-function Columns3Icon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M9 3v18" />
-      <path d="M15 3v18" />
-    </svg>
   )
 }
