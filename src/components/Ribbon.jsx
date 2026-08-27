@@ -7,7 +7,7 @@ import {
   Undo2, Redo2, Save, ArrowUpDown, ListFilter, Type, Hash, SlidersHorizontal, RefreshCw,
   Database, Sparkles, Highlighter, StickyNote, Pencil, LayoutGrid, Baseline, Columns3,
   PenLine, Link, Lightbulb, LifeBuoy, MessageCircle, Send, BookOpen, Play, Rows3,
-  Grid3X3, Frame, History,  Workflow, Zap, Table, TrendingUp, AreaChart, ScatterChart, Share2,
+  Grid3X3, Frame, History,  Workflow, Zap, Table, TrendingUp, AreaChart, ScatterChart, Share2, Check,
 } from 'lucide-react'
 import { cn } from '../utils/cn.js'
 
