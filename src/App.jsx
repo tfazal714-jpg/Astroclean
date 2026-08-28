@@ -651,6 +651,7 @@ export default function App() {
               onOpenMetrics={handleOpenMetrics}
               onOpenSettings={handleOpenSettings}
               onToggleTheme={handleToggleTheme}
+              onNewDataset={handleNewDataset}
               dark={dark}
             />
           </div>
